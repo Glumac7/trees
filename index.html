@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trees</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script>try { const t = localStorage.getItem('trees-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+<style>
+  :root {
+    --bg:#f6f6f4; --rail:#ecebe7; --panel:#fff; --fg:#1c1b19; --muted:#5f5d58; --line:#e2e0db; --hover:#f0efeb; --sel:#e6ecfa; --sel-fg:#1e40af;
+    --accent:#2f5bd3; --accent-fg:#fff; --link:#2f5bd3; --ok:#15803d; --warn:#b45309; --bad:#b91c1c; --idle:#a8a49c;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#121211; --rail:#181816; --panel:#1b1b19; --fg:#e8e6e1; --muted:#a19e97; --line:#2c2b28; --hover:#23221f; --sel:#1d2740; --sel-fg:#a9c1ff;
+      --accent:#3561d8; --accent-fg:#fff; --link:#93b1ff; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --idle:#5d5a54;
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="dark"] {
+      --bg:#121211; --rail:#181816; --panel:#1b1b19; --fg:#e8e6e1; --muted:#a19e97; --line:#2c2b28; --hover:#23221f; --sel:#1d2740; --sel-fg:#a9c1ff;
+      --accent:#3561d8; --accent-fg:#fff; --link:#93b1ff; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --idle:#5d5a54;
+      color-scheme:dark;
+  }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  html, body { height:100%; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 ui-sans-serif, system-ui, -apple-system, sans-serif; -webkit-font-smoothing:antialiased; scrollbar-color:var(--line) transparent; }
+  ::selection { background:var(--sel); color:var(--sel-fg); }
+  :focus-visible { outline:2px solid var(--link); outline-offset:2px; }
+  button, input { font:inherit; color:inherit; }
+  a { color:var(--link); text-underline-offset:2px; }
+  .mono { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; }
+  .muted { color:var(--muted); }
+  .num { font-variant-numeric:tabular-nums; }
+  .add { color:var(--ok); } .del { color:var(--bad); }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  svg.i.lg { width:16px; height:16px; }
+  svg.i { width:12px; height:12px; vertical-align:-1px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+
+  .app { display:grid; grid-template-columns:240px minmax(0,1fr) 420px; height:100vh; }
+  .app.no-detail { grid-template-columns:240px minmax(0,1fr); }
+
+  /* Sidebar */
+  .rail { background:var(--rail); border-right:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .brand { font-weight:650; letter-spacing:-.01em; padding:16px 16px 12px; }
+  .rail-search { padding:0 10px 8px; }
+  .rail nav { overflow:auto; padding:0 6px 16px; }
+  .group { color:var(--muted); font-size:12px; font-weight:550; padding:14px 10px 4px; }
+  details summary { cursor:pointer; list-style:none; border-radius:6px; display:flex; align-items:center; gap:6px; }
+  details summary::-webkit-details-marker { display:none; }
+  .chev { width:12px; height:12px; flex:none; transition:transform .15s cubic-bezier(.16,1,.3,1); }
+  details[open] .chev { transform:rotate(90deg); }
+  .repo { display:flex; justify-content:space-between; align-items:center; width:100%; text-align:left; background:none; border:0; border-radius:6px; padding:6px 10px; cursor:pointer; min-height:32px; }
+  .repo:hover { background:var(--hover); }
+  .repo[aria-current="true"] { background:var(--sel); color:var(--sel-fg); font-weight:600; }
+  .count { font-size:12px; color:var(--muted); font-weight:500; min-width:20px; text-align:right; }
+  .repo[aria-current="true"] .count { color:inherit; }
+  .repo .right { display:flex; align-items:center; gap:8px; }
+  .repo .alert { width:7px; height:7px; border-radius:50%; background:var(--bad); }
+  .none { color:var(--muted); padding:8px 10px; font-size:13px; }
+
+  input.field { width:100%; background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:7px 10px; outline:none; }
+  input.field:focus { border-color:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+
+  /* Main */
+  main { overflow:auto; padding:20px 24px 40px; min-width:0; }
+  .top { display:flex; align-items:center; gap:12px; margin-bottom:16px; min-height:34px; }
+  .top h1 { font-size:18px; font-weight:650; letter-spacing:-.01em; margin:0; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sync { font-size:12px; color:var(--muted); white-space:nowrap; }
+  .btn { display:inline-flex; align-items:center; gap:6px; background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:6px 12px; min-height:32px; cursor:pointer; white-space:nowrap; text-decoration:none; color:var(--fg); }
+  .btn:hover { border-color:var(--muted); }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-fg); font-weight:550; }
+  .btn.primary:hover { filter:brightness(1.08); }
+  .btn.danger { color:var(--bad); }
+  .btn.danger:hover { border-color:var(--bad); }
+  .btn:disabled { opacity:.6; cursor:progress; }
+  .btn.icon { padding:6px; min-width:32px; justify-content:center; }
+
+  #new { display:none; gap:8px; margin-bottom:16px; padding:12px; background:var(--panel); border:1px solid var(--line); border-radius:8px; }
+  #new.open { display:flex; flex-wrap:wrap; }
+  #new .field[name=branch] { flex:1 1 280px; }
+  #new .field[name=base] { flex:0 1 180px; }
+
+  .rows-ul { list-style:none; margin:0; padding:0; }
+  .cols { display:flex; align-items:center; gap:14px; padding:8px 14px; border-bottom:1px solid var(--line); font-size:12px; color:var(--muted); }
+  .cols .name { padding-left:22px; }
+  .list { list-style:none; margin:0; padding:0; background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .row { position:relative; display:flex; align-items:center; gap:14px; padding:10px 14px; border-bottom:1px solid var(--line); min-height:44px; }
+  .row:last-child { border-bottom:0; }
+  .row:hover { background:var(--hover); }
+  .row.sel { background:var(--sel); }
+  .row > :not(.hit) { position:relative; pointer-events:none; }
+  .row a { pointer-events:auto; }
+  .hit { position:absolute; inset:0; width:100%; background:none; border:0; cursor:pointer; }
+  .hit:focus-visible { outline-offset:-2px; }
+  .dot { width:8px; height:8px; border-radius:50%; flex:none; background:var(--ok); }
+  .dot.dirty { background:var(--warn); } .dot.bad { background:var(--bad); } .dot.stale { background:var(--idle); }
+  .name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .name .sub { color:var(--muted); font-size:13px; }
+  .ticket { font:500 12px ui-monospace, SFMono-Regular, Menlo, monospace; color:var(--muted); margin-right:8px; }
+  .row.sel .ticket { color:inherit; opacity:.8; }
+  .meta { color:var(--muted); font-size:12px; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .age { width:36px; text-align:right; }
+  .local { min-width:76px; text-align:right; }
+  .ab { min-width:84px; text-align:right; }
+  .prcell { width:96px; display:flex; justify-content:flex-end; }
+  .pill { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:500; border:1px solid var(--line); background:var(--panel); border-radius:999px; padding:2px 9px; text-decoration:none; color:var(--fg); white-space:nowrap; min-height:24px; }
+  .pill:hover { border-color:var(--link); color:var(--link); }
+  .pill.ghost { color:var(--muted); border-style:dashed; background:transparent; }
+  .ci { width:7px; height:7px; border-radius:50%; background:var(--idle); flex:none; }
+  .ci.passed { background:var(--ok); } .ci.failed, .ci.error { background:var(--bad); } .ci.pending, .ci.running { background:var(--warn); }
+  .state { padding:28px 20px; text-align:center; color:var(--muted); }
+  .state p { margin:0 0 12px; }
+
+  /* Detail */
+  .detail { background:var(--panel); border-left:1px solid var(--line); overflow:auto; min-height:0; }
+  .no-detail .detail { display:none; }
+  #scrim { display:none; }
+  .d-head { padding:18px 20px 16px; border-bottom:1px solid var(--line); }
+  .d-title { display:flex; gap:8px; align-items:flex-start; }
+  .d-title h2 { font-size:16px; font-weight:650; letter-spacing:-.01em; margin:0; flex:1; line-height:1.35; }
+  .copy { background:none; border:0; padding:2px 0; cursor:copy; text-align:left; color:var(--muted); word-break:break-all; }
+  .copy:hover { color:var(--fg); }
+  .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .finish .actions { margin-top:0; }
+  .finish p { margin:8px 0 0; font-size:12px; color:var(--muted); }
+  .block { padding:16px 20px; border-bottom:1px solid var(--line); }
+  .block:last-child { border-bottom:0; }
+  .block h3 { font-size:12px; font-weight:600; color:var(--muted); margin:0 0 8px; }
+  .block ul { list-style:none; margin:0; padding:0; }
+  .block li { display:flex; gap:10px; padding:3px 0; align-items:baseline; }
+  .block li .grow { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kv { display:grid; grid-template-columns:96px 1fr; gap:6px 12px; margin:0; }
+  .kv dt { color:var(--muted); } .kv dd { margin:0; min-width:0; }
+  .badge { display:inline-flex; align-items:center; gap:6px; }
+
+  .intro { background:color-mix(in srgb, var(--accent) 7%, var(--panel)); border:1px solid color-mix(in srgb, var(--accent) 22%, var(--line)); border-radius:8px; padding:16px 18px; margin-bottom:16px; }
+  .intro-head { display:flex; align-items:flex-start; gap:12px; }
+  .intro h2 { font-size:15px; font-weight:650; letter-spacing:-.01em; margin:0; flex:1; line-height:1.4; }
+  .intro p { margin:6px 0 0; max-width:68ch; }
+  .legend { list-style:none; margin:14px 0; padding:0; display:flex; flex-wrap:wrap; gap:10px 22px; font-size:13px; }
+  .legend li { display:flex; align-items:center; gap:8px; }
+  .intro .actions { margin-top:14px; }
+  dialog#ask { border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--fg); padding:22px 24px 20px; width:min(440px, calc(100vw - 32px)); box-shadow:0 24px 64px rgb(0 0 0 / .32); }
+  dialog#ask[open] { animation:pop .22s cubic-bezier(.16,1,.3,1); }
+  dialog#ask::backdrop { background:rgb(10 10 9 / .45); animation:fade .22s ease-out; }
+  @keyframes pop { from { opacity:0; transform:translateY(6px) scale(.98); } }
+  @keyframes fade { from { opacity:0; } }
+  #ask h2 { font-size:16px; font-weight:650; letter-spacing:-.01em; margin:0 0 8px; }
+  #ask p { margin:0; color:var(--muted); line-height:1.5; }
+  #ask p .mono { color:var(--fg); word-break:break-all; }
+  #ask ul { margin:10px 0 0; padding-left:18px; color:var(--fg); max-height:180px; overflow:auto; }
+  #ask li { margin:2px 0; }
+  .btn.update { border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); color:var(--link); font-weight:550; }
+  .btn.update::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--accent); }
+  #ask .warn { display:block; margin-top:8px; color:var(--warn); }
+  #ask pre { margin:12px 0 0; padding:10px 12px; background:var(--bg); border:1px solid var(--line); border-radius:6px; font:12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color:var(--muted); white-space:pre-wrap; max-height:140px; overflow:auto; }
+  .ask-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
+  .btn.destructive { background:var(--bad); border-color:var(--bad); color:var(--bg); font-weight:550; }
+  .btn.destructive:hover { filter:brightness(1.08); }
+  #toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); max-width:min(640px, calc(100vw - 32px)); white-space:pre-wrap; font-size:13px; padding:10px 14px; border-radius:8px; background:var(--fg); color:var(--bg); box-shadow:0 8px 24px rgb(0 0 0 / .18); opacity:0; pointer-events:none; transition:opacity .2s cubic-bezier(.16,1,.3,1); }
+  #toast.show { opacity:1; pointer-events:auto; }
+  #toast.err { background:var(--bad); color:var(--bg); display:flex; gap:12px; align-items:flex-start; }
+  .toast-x { background:none; border:0; color:inherit; cursor:pointer; padding:2px; margin:-2px -4px 0 0; flex:none; }
+
+  @media (max-width: 1280px) {
+    .app, .app.no-detail { grid-template-columns:240px minmax(0,1fr); }
+    .app:not(.no-detail) #scrim { display:block; position:fixed; inset:0; background:rgb(10 10 9 / .35); z-index:4; }
+    .detail { position:fixed; inset:0 0 0 auto; width:min(420px, 100vw); box-shadow:-12px 0 32px rgb(0 0 0 / .18); z-index:5; }
+  }
+  @media (max-width: 860px) {
+    .app, .app.no-detail { grid-template-columns:1fr; grid-template-rows:auto 1fr; height:auto; min-height:100vh; }
+    .rail { border-right:0; border-bottom:1px solid var(--line); max-height:45vh; }
+    main { padding:16px; }
+    .top { flex-wrap:wrap; }
+    .top h1 { flex-basis:100%; }
+    .row { gap:10px; padding:10px 12px; }
+    .row .local, .row .age, .row .ab, .cols { display:none; }
+    .prcell { width:auto; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
+</style>
+</head>
+<body>
+<div class="app no-detail" id="app">
+  <div class="rail">
+    <div class="brand">Trees</div>
+    <div class="rail-search"><input class="field" id="repo-filter" type="search" placeholder="Find a repo" aria-label="Find a repo"></div>
+    <nav id="repos" aria-label="Repositories"></nav>
+  </div>
+
+  <main>
+    <div class="top">
+      <h1 id="title">Repositories</h1>
+      <span class="sync" id="sync"></span>
+      <button class="btn update" id="update-btn" hidden></button>
+      <button class="btn icon" id="theme-btn"></button>
+      <button class="btn icon" id="help-btn" aria-label="How this works" title="How this works" aria-expanded="false" aria-controls="intro"><svg class="i lg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg></button>
+      <button class="btn primary" id="new-btn" aria-expanded="false" aria-controls="new" hidden>New worktree</button>
+    </div>
+    <form id="new" aria-label="New worktree">
+      <input class="field" name="branch" placeholder="Branch, e.g. feature/short-title" required pattern="\w[\w.\/\-]*" aria-label="Branch name" autocomplete="off">
+      <input class="field" name="base" placeholder="From (default branch)" aria-label="Base branch" autocomplete="off">
+      <button class="btn primary">Create</button>
+      <button class="btn" type="button" id="new-cancel">Cancel</button>
+    </form>
+    <section class="intro" id="intro" aria-labelledby="intro-title" hidden>
+      <div class="intro-head">
+        <h2 id="intro-title">All your branches, side by side</h2>
+        <button class="btn icon" data-intro-close aria-label="Close guide"><svg class="i lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <p>Each row is a worktree: a branch checked out in its own folder. You can keep several going at once without stashing or switching branches.</p>
+      <ul class="legend" aria-label="What the markers mean">
+        <li><span class="dot"></span>Clean</li>
+        <li><span class="dot dirty"></span>Uncommitted changes</li>
+        <li><span class="dot bad"></span>Conflicts</li>
+        <li><span class="dot stale"></span>Folder missing</li>
+        <li><span class="pill"><span class="ci passed" aria-hidden="true"></span>#123</span>Pull request, dot shows CI</li>
+      </ul>
+      <p>Click a row to see its commits and changed files, open the PR, a terminal or your editor, and merge or remove it when you're done. Repos with worktrees are listed first, and a red dot next to one means CI is failing or a branch has conflicts.</p>
+      <div class="actions"><button class="btn primary" data-intro-close>Got it</button></div>
+    </section>
+    <div id="rows"></div>
+  </main>
+
+  <div id="scrim" aria-hidden="true"></div>
+  <aside class="detail" id="detail" aria-label="Worktree details"></aside>
+</div>
+<dialog id="ask" aria-labelledby="ask-title" aria-describedby="ask-body">
+  <form method="dialog">
+    <h2 id="ask-title"></h2>
+    <p id="ask-body"></p>
+    <pre id="ask-detail" hidden></pre>
+    <div class="ask-actions">
+      <button class="btn" value="cancel" id="ask-cancel">Cancel</button>
+      <button class="btn primary" value="ok" id="ask-ok"></button>
+    </div>
+  </form>
+</dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const icon = {
+  up: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+  down: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>',
+  close: '<svg class="i lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  ext: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>',
+};
+
+const api = async (path, body) => {
+  const r = await fetch('/api/' + path, body && { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({ error: `Server error (${r.status})` }));
+  if (!r.ok) throw new Error(data.error);
+  return data;
+};
+
+const state = { repos: [], repo: null, data: null, sel: null, detail: null, token: 0, busy: null, health: {}, restOpen: null, listSeq: 0, listShown: 0 };
+const busyHere = (name) => state.busy?.repo === state.repo && state.busy.key === state.sel && state.busy.name === name;
+const keyOf = (i) => i.branch ?? i.worktree.path;
+const items = () => (state.data?.items ?? []).filter((i) => i.worktree)
+  .sort((a, b) => (b.worktree.main - a.worktree.main) || ((b.head?.committed_at ?? '') > (a.head?.committed_at ?? '') ? 1 : -1));
+const current = () => items().find((i) => keyOf(i) === state.sel);
+
+function parseBranch(b, path) {
+  if (!b) return { title: `Detached · ${path?.split('/').pop() ?? ''}`, ticket: '' };
+  const m = b.match(/^(?:\d{4}\/\d{1,2}\/)?(?:([a-z][a-z0-9]+-\d+)\/)?(.+)$/i);
+  const t = m[2].replace(/[-_]/g, ' ');
+  return { title: t.charAt(0).toUpperCase() + t.slice(1), ticket: m[1]?.toUpperCase() ?? '' };
+}
+
+function ago(iso) {
+  if (!iso) return '';
+  const s = (Date.now() - new Date(iso)) / 1000;
+  for (const [n, u] of [[86400 * 30, 'mo'], [86400 * 7, 'w'], [86400, 'd'], [3600, 'h'], [60, 'm']]) if (s >= n) return `${Math.floor(s / n)}${u}`;
+  return 'now';
+}
+
+function status(i) {
+  const c = i.worktree.changes;
+  if (i.worktree.prunable) return ['stale', 'Folder missing'];
+  if (c?.conflicted || i.default_branch?.merge_conflicts) return ['bad', 'Conflicts'];
+  if (c && (c.staged || c.modified || c.untracked || c.deleted || c.renamed)) return ['dirty', 'Uncommitted changes'];
+  return ['', 'Clean'];
+}
+
+const ciLabel = (s) => ({ passed: 'Checks passed', failed: 'Checks failed', error: 'Checks errored', pending: 'Checks running', running: 'Checks running' }[s] ?? (s ? `Checks ${s}` : ''));
+const ciDot = (i) => i.checks?.status ? `<span class="ci ${esc(i.checks.status)}" aria-hidden="true"></span>` : '';
+const compareUrl = (i) => {
+  const f = state.data?.repo?.forge;
+  return f?.provider === 'github' && i.branch && i.branch !== state.data.repo.default_branch && i.default_branch?.ahead ? `${f.url}/compare/${encodeURIComponent(i.branch)}?expand=1` : null;
+};
+
+function prPill(i) {
+  const label = ciLabel(i.checks?.status);
+  if (i.pr) return `<a class="pill" href="${esc(i.pr.url)}" target="_blank" rel="noopener" title="Open PR #${esc(i.pr.number)} on GitHub${label ? ` · ${label}` : ''}">${ciDot(i)}#${esc(i.pr.number)}${i.pr.review === 'draft' ? ' <span class="muted">draft</span>' : ''}</a>`;
+  const url = compareUrl(i);
+  if (url) return `<a class="pill ghost" href="${esc(url)}" target="_blank" rel="noopener" title="Create a pull request on GitHub${label ? ` · ${label}` : ''}">${ciDot(i)}Create PR</a>`;
+  return i.checks?.status ? `<span class="ci ${esc(i.checks.status)}" role="img" aria-label="${esc(label)}" title="${esc(label)}"></span>` : '';
+}
+
+const aheadBehind = (x) => [x?.ahead && `<span title="${x.ahead} ahead">${icon.up}${x.ahead}</span>`, x?.behind && `<span title="${x.behind} behind">${icon.down}${x.behind}</span>`].filter(Boolean).join(' ');
+
+function row(i) {
+  const { title, ticket } = parseBranch(i.branch, i.worktree.path);
+  const [cls, label] = status(i);
+  const diff = i.worktree.changes?.diff;
+  const local = diff && (diff.added || diff.deleted) ? `<span class="add">+${diff.added}</span> <span class="del">−${diff.deleted}</span>` : '';
+  const key = keyOf(i);
+  const sel = key === state.sel;
+  const d = i.worktree.main ? {} : i.default_branch ?? {};
+  const pr = [d.ahead && `${d.ahead} ahead`, d.behind && `${d.behind} behind`, i.pr && `pull request ${i.pr.number}`, ciLabel(i.checks?.status)].filter(Boolean).map((x) => `, ${x}`).join('');
+  return `<li class="row ${sel ? 'sel' : ''}">
+    <button class="hit" data-key="${esc(key)}" aria-pressed="${sel}" aria-label="${esc(`${ticket ? `${ticket} ` : ''}${title}${i.worktree.main ? ', main checkout' : ''}, ${label}${pr}`)}"></button>
+    <span class="dot ${cls}" title="${label}"></span>
+    <span class="name">${ticket ? `<span class="ticket">${esc(ticket)}</span>` : ''}${esc(title)}${i.worktree.main ? ' <span class="sub">· main checkout</span>' : ''}</span>
+    <span class="meta local" title="Uncommitted lines">${local}</span>
+    <span class="meta ab">${i.worktree.main ? '' : aheadBehind(i.default_branch)}</span>
+    <span class="prcell">${prPill(i)}</span>
+    <span class="meta age" title="Last commit">${ago(i.head?.committed_at)}</span>
+  </li>`;
+}
+
+function repoAlert(name) {
+  const h = state.health[name];
+  if (!h || !(h.failing || h.conflicts)) return '';
+  const why = [h.failing && `CI failing in ${h.failing}`, h.conflicts && `conflicts in ${h.conflicts}`].filter(Boolean).join(', ');
+  return `<span class="alert" role="img" aria-label="Needs attention: ${why}" title="Needs attention: ${why}"></span>`;
+}
+
+const healthOf = (items) => ({
+  conflicts: items.filter((i) => i.worktree && (i.worktree.changes?.conflicted || i.default_branch?.merge_conflicts)).length,
+  failing: items.filter((i) => i.worktree && ['failed', 'error'].includes(i.checks?.status)).length,
+});
+
+async function loadHealth() {
+  const names = state.repos.filter((r) => r.worktrees).map((r) => r.name);
+  if (!names.length) return;
+  try {
+    for (const h of await api(`health?repos=${names.map(encodeURIComponent).join(',')}`)) state.health[h.name] = h;
+    renderRepos();
+  } catch {}
+}
+
+function renderRepos() {
+  const f = $('#repo-filter').value.trim().toLowerCase();
+  const shown = state.repos.filter((r) => r.name.toLowerCase().includes(f));
+  const btn = (r) => `<button class="repo" data-repo="${esc(r.name)}" aria-current="${r.name === state.repo}">
+    <span>${esc(r.name)}</span><span class="right">${repoAlert(r.name)}${r.worktrees ? `<span class="count" aria-label="${r.worktrees} worktrees">${r.worktrees}</span>` : ''}</span></button>`;
+  const active = shown.filter((r) => r.worktrees), rest = shown.filter((r) => !r.worktrees);
+  const restOpen = f || (state.restOpen ?? (!active.length || rest.some((r) => r.name === state.repo)));
+  const focused = document.activeElement?.dataset?.repo;
+  $('#repos').innerHTML = !shown.length ? '<div class="none">No repo matches.</div>'
+    : (active.length ? `<div class="group">Active</div>${active.map(btn).join('')}` : '')
+    + (rest.length ? `<details ${restOpen ? 'open' : ''}><summary class="group"><svg class="i chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>No worktrees · ${rest.length}</summary>${rest.map(btn).join('')}</details>` : '');
+  $('#repos summary')?.addEventListener('click', (e) => { if (!f) state.restOpen = !e.currentTarget.parentElement.open; });
+  if (focused) $(`#repos [data-repo="${CSS.escape(focused)}"]`)?.focus();
+}
+
+function renderRows() {
+  const el = $('#rows');
+  if (!state.repo) { el.innerHTML = ''; return; }
+  if (!state.data) { el.innerHTML = '<div class="list"><div class="state">Loading worktrees…</div></div>'; return; }
+  const focused = document.activeElement?.dataset?.key;
+  const list = items();
+  const onlyMain = list.every((i) => i.worktree.main);
+  const def = esc(state.data.repo.default_branch);
+  const cols = `<div class="cols" aria-hidden="true"><span class="name">Branch</span><span class="local">Uncommitted</span><span class="ab">vs ${def}</span><span class="prcell">PR</span><span class="age">Age</span></div>`;
+  el.innerHTML = `<div class="list">${cols}<ul class="rows-ul">${list.map(row).join('')}</ul></div>`
+    + (onlyMain ? `<div class="state"><p>No worktrees yet. Each one gets its own folder, so you can work on several branches at once.</p><button class="btn primary" data-new>New worktree</button></div>` : '');
+  if (focused) el.querySelector(`[data-key="${CSS.escape(focused)}"]`)?.focus();
+}
+
+function mainSection(i, busy) {
+  const def = esc(state.data.repo.default_branch);
+  const onFeature = i.worktree.main && i.branch && i.branch !== state.data.repo.default_branch;
+  const dirty = i.worktree.main && ['dirty', 'bad'].includes(status(i)[0]);
+  if (!onFeature && !dirty) return '';
+  const resetLabel = busyHere('reset') ? 'Stashing…' : onFeature ? `Stash and switch to ${def}` : 'Stash changes';
+  return `<section class="block finish"><h3>${onFeature ? 'Main checkout is on a feature branch' : `Uncommitted changes on ${def}`}</h3><div class="actions">
+    ${onFeature ? `<button class="btn primary" data-act="move" ${busy('move')}>${busyHere('move') ? 'Moving…' : 'Move to worktree'}</button>` : ''}
+    <button class="btn" data-act="reset" ${busy('reset')}>${resetLabel}</button>
+  </div><p>${onFeature
+    ? `Move keeps the branch and its changes in a new worktree. Stash and switch sets the changes aside and puts this folder back on ${def}.`
+    : `Sets the changes aside so ${def} is clean again.`} Stashed changes come back with <span class="mono">git stash pop</span>.</p></section>`;
+}
+
+function renderDetail() {
+  const f = document.activeElement;
+  const restore = f && $('#detail').contains(f)
+    ? f.dataset.act ? `[data-act="${f.dataset.act}"]` : f.dataset.copy ? `[data-copy="${CSS.escape(f.dataset.copy)}"]` : f.hasAttribute('data-close') ? '[data-close]' : null
+    : null;
+  drawDetail();
+  if (restore) $('#detail').querySelector(restore)?.focus();
+}
+
+function drawDetail() {
+  const i = current();
+  $('#app').classList.toggle('no-detail', !i);
+  if (!i) { $('#detail').innerHTML = ''; return; }
+  const { title, ticket } = parseBranch(i.branch, i.worktree.path);
+  const det = state.detail?.key === state.sel ? state.detail : null;
+  const pr = i.pr, d = i.default_branch ?? {}, main = i.worktree.main;
+  const busy = (a) => busyHere(a) ? 'disabled' : '';
+  const prBtn = pr ? `<a class="btn primary" href="${esc(pr.url)}" target="_blank" rel="noopener">Open PR #${esc(pr.number)} ${icon.ext}</a>`
+    : compareUrl(i) ? `<a class="btn" href="${esc(compareUrl(i))}" target="_blank" rel="noopener">Create PR ${icon.ext}</a>` : '';
+  const list = (h, arr, f, empty) => `<section class="block"><h3>${h}${arr ? ` · ${arr.length}` : ''}</h3>${!arr ? '<span class="muted">Loading…</span>' : arr.length ? `<ul>${arr.slice(0, 50).map(f).join('')}</ul>${arr.length > 50 ? `<span class="muted">+${arr.length - 50} more</span>` : ''}` : `<span class="muted">${empty}</span>`}</section>`;
+  const [, label] = status(i);
+  $('#detail').innerHTML = `
+    <div class="d-head">
+      <div class="d-title">
+        <h2>${ticket ? `<span class="ticket">${esc(ticket)}</span>` : ''}${esc(title)}</h2>
+        <button class="btn icon" data-close aria-label="Close details">${icon.close}</button>
+      </div>
+      ${i.branch ? `<button class="copy mono" data-copy="${esc(i.branch)}" title="Copy branch name">${esc(i.branch)}</button>` : ''}
+      <div class="actions">
+        ${prBtn}
+        <button class="btn" data-act="terminal">Terminal</button>
+        <button class="btn" data-act="editor">Editor</button>
+      </div>
+    </div>
+    <section class="block"><dl class="kv">
+      <dt>Status</dt><dd>${label}</dd>
+      ${pr ? `<dt>Pull request</dt><dd><a href="${esc(pr.url)}" target="_blank" rel="noopener">#${esc(pr.number)}</a>${pr.review ? ` · ${esc(pr.review)}` : ''}${pr.mergeable === false ? ' · <span class="del">not mergeable</span>' : ''}</dd>` : ''}
+      ${i.checks?.status ? `<dt>CI</dt><dd class="badge">${ciDot(i)}${esc(ciLabel(i.checks.status))}</dd>` : ''}
+      ${main ? '' : `<dt>vs ${esc(state.data.repo.default_branch)}</dt><dd class="num">${d.ahead ?? 0} ahead · ${d.behind ?? 0} behind${d.merge_conflicts ? ' · <span class="del">conflicts</span>' : ''}</dd>`}
+      <dt>Remote</dt><dd class="num">${i.upstream ? `${i.upstream.ahead ? `${i.upstream.ahead} to push` : 'Up to date'}${i.upstream.behind ? ` · ${i.upstream.behind} to pull` : ''}` : `<span class="muted">${i.branch ? 'Not pushed' : 'No upstream'}</span>`}</dd>
+      <dt>Last commit</dt><dd>${esc(i.head?.subject ?? '—')} <span class="muted">${ago(i.head?.committed_at)}</span></dd>
+      <dt>Folder</dt><dd><button class="copy mono" data-copy="${esc(i.worktree.path)}" title="Copy path">${esc(i.worktree.path)}</button></dd>
+    </dl></section>
+    ${mainSection(i, busy)}
+    ${main ? '' : `<section class="block finish"><h3>Finish</h3><div class="actions">
+      ${i.branch ? `<button class="btn" data-act="merge" ${busy('merge')}>${busyHere('merge') ? 'Merging…' : `Merge into ${esc(state.data.repo.default_branch)}`}</button>` : ''}
+      <button class="btn danger" data-act="remove" ${busy('remove')}>${busyHere('remove') ? 'Removing…' : 'Remove worktree'}</button>
+    </div>${i.branch ? `<p>Merge squashes and rebases locally, then removes the worktree.${pr ? ' Usually you merge the PR on GitHub instead.' : ''}</p>` : ''}</section>`}
+    ${list('Uncommitted', det?.uncommitted, (f) => `<li><span class="mono muted" style="width:20px">${esc(f.code)}</span><span class="grow mono">${esc(f.file)}</span></li>`, 'Nothing uncommitted')}
+    ${main ? '' : list('Commits', det?.commits, (c) => `<li><span class="mono muted">${esc(c.sha)}</span><span class="grow">${esc(c.subject)}</span><span class="meta">${ago(c.when)}</span></li>`, 'No commits yet')}
+    ${main ? '' : list('Files changed', det?.files, (f) => `<li><span class="grow" title="${esc(f.file)}"><span class="mono">${esc(f.file.split('/').pop())}</span> <span class="mono muted">${esc(f.file.split('/').slice(0, -1).join('/'))}</span></span><span class="meta"><span class="add">+${esc(f.added)}</span> <span class="del">−${esc(f.deleted)}</span></span></li>`, 'No changes yet')}`;
+}
+
+let toastTimer;
+function toast(text, err) {
+  const el = $('#toast');
+  el.setAttribute('role', err ? 'alert' : 'status');
+  el.innerHTML = `<span>${esc(text)}</span>${err ? `<button class="toast-x" aria-label="Dismiss">${icon.close}</button>` : ''}`;
+  el.className = `show ${err ? 'err' : ''}`;
+  clearTimeout(toastTimer);
+  if (!err) toastTimer = setTimeout(() => (el.className = ''), 2500);
+}
+$('#toast').addEventListener('click', (e) => { if (e.target.closest('.toast-x')) $('#toast').className = ''; });
+
+async function loadList(full) {
+  const token = state.token, repo = state.repo, seq = ++state.listSeq;
+  if (full && !state.data?.collected?.ci) $('#sync').textContent = 'Checking PRs…';
+  try {
+    const data = await api(`list?repo=${encodeURIComponent(repo)}${full ? '&full' : ''}`);
+    if (token !== state.token || seq < state.listShown) return;
+    state.listShown = seq;
+    state.data = data;
+    if (full) { state.health[repo] = healthOf(data.items); renderRepos(); }
+    if (full) $('#sync').textContent = `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    if (state.sel && !current()) state.sel = null;
+    renderRows();
+    renderDetail();
+  } catch (e) {
+    if (token !== state.token || seq < state.listShown) return;
+    $('#sync').textContent = 'Update failed';
+    if (!state.data) $('#rows').innerHTML = `<div class="list"><div class="state"><p>${esc(e.message)}</p><button class="btn" data-retry>Try again</button></div></div>`;
+    else toast(e.message, true);
+  }
+}
+
+async function loadDetail() {
+  const key = state.sel, token = state.token;
+  if (!key) return;
+  try {
+    const det = await api(`detail?repo=${encodeURIComponent(state.repo)}&key=${encodeURIComponent(key)}`);
+    if (key === state.sel && token === state.token) { state.detail = { ...det, key }; renderDetail(); }
+  } catch (e) {
+    if (key === state.sel && token === state.token) toast(e.message, true);
+  }
+}
+
+async function selectRepo(name, push = true) {
+  if (!state.repos.some((r) => r.name === name)) return;
+  if (push && name !== state.repo && state.repo) history.pushState(null, '', '#' + encodeURIComponent(name));
+  else history.replaceState(null, '', '#' + encodeURIComponent(name));
+  Object.assign(state, { repo: name, data: null, sel: null, detail: null });
+  state.token++;
+  document.title = `${name} · Trees`;
+  $('#title').textContent = name;
+  $('#sync').textContent = '';
+  $('#new-btn').hidden = false;
+  closeNew();
+  renderRepos(); renderRows(); renderDetail();
+  await loadList(false);
+  loadList(true);
+}
+
+function select(key, focus) {
+  state.sel = key;
+  renderRows(); renderDetail();
+  const hit = key && $(`#rows [data-key="${CSS.escape(key)}"]`);
+  hit?.scrollIntoView({ block: 'nearest' });
+  if (focus && hit) hit.focus();
+  loadDetail();
+}
+
+function ask({ title, body, ok, danger, cautious, detail }) {
+  const dlg = $('#ask');
+  $('#ask-title').textContent = title;
+  $('#ask-body').innerHTML = body;
+  $('#ask-detail').textContent = detail ?? '';
+  $('#ask-detail').hidden = !detail;
+  $('#ask-ok').textContent = ok;
+  $('#ask-ok').className = `btn ${danger ? 'destructive' : 'primary'}`;
+  dlg.showModal();
+  (danger || cautious ? $('#ask-cancel') : $('#ask-ok')).focus();
+  return new Promise((resolve) => { askResolve = resolve; });
+}
+let askResolve = null;
+function answer(yes) {
+  $('#ask').close();
+  askResolve?.(yes);
+  askResolve = null;
+}
+$('#ask-ok').addEventListener('click', (e) => { e.preventDefault(); answer(true); });
+$('#ask-cancel').addEventListener('click', (e) => { e.preventDefault(); answer(false); });
+$('#ask').addEventListener('cancel', (e) => { e.preventDefault(); answer(false); });
+$('#ask').addEventListener('click', (e) => { if (e.target === e.currentTarget) answer(false); });
+
+async function act(name, extra = {}, target = null) {
+  const i = target?.i ?? current();
+  if (!i) return;
+  if (state.busy) return toast(`Wait until ${state.busy.name} finishes.`, true);
+  if (updating) return toast('Wait until the update finishes.', true);
+  const repo = target?.repo ?? state.repo, key = target?.key ?? keyOf(i), defBranch = target?.defBranch ?? state.data.repo.default_branch;
+  const label = i.branch ?? i.worktree.path;
+  const def = esc(defBranch), b = `<span class="mono">${esc(label)}</span>`;
+  const prompts = {
+    merge: { title: `Merge into ${def}?`, ok: `Merge into ${def}`, cautious: true,
+      body: `${b} is squashed, rebased and merged into ${def} on your machine, then its worktree is removed.`
+        + [i.default_branch?.merge_conflicts && `It has conflicts with ${def}, so the rebase will stop partway.`,
+           i.pr?.mergeable === false && 'GitHub reports the PR as not mergeable.',
+           i.pr && `PR #${esc(i.pr.number)} is open; usually you merge it on GitHub instead.`]
+          .filter(Boolean).map((w) => `<span class="warn">${w}</span>`).join('') },
+    move: { title: 'Move to its own worktree?', ok: 'Move to worktree',
+      body: `${b} opens in a new worktree with your uncommitted changes. This folder switches back to ${def}.` },
+    reset: i.branch === defBranch
+      ? { title: 'Stash your changes?', ok: 'Stash changes', body: `All uncommitted changes on ${def} are set aside, not deleted. Get them back with <span class="mono">git stash pop</span>.` }
+      : { title: `Stash and switch to ${def}?`, ok: `Stash and switch`, body: `Uncommitted changes are set aside and this folder switches to ${def}. ${b} stays as it is. Get the changes back with <span class="mono">git stash pop</span>.` },
+    remove: { title: 'Remove this worktree?', ok: 'Remove worktree', danger: true,
+      body: `The folder for ${b} is deleted. The branch is deleted too if it's already merged.` },
+  };
+  if (!target) {
+    if (prompts[name] && !(await ask(prompts[name]))) return;
+    if (state.repo !== repo || state.sel !== key) return;
+  }
+  const long = ['merge', 'remove', 'move', 'reset'].includes(name);
+  if (long) { state.busy = { repo, key, name }; renderDetail(); }
+  let error;
+  try {
+    await api(name, { repo, key, ...extra });
+    if (name === 'merge') toast(`Merged ${label}`);
+    if (name === 'remove') toast(`Removed ${label}`);
+    if (name === 'move') toast(`Moved ${label} to its own worktree`);
+    if (name === 'reset') toast(i.branch === defBranch ? 'Changes stashed' : `Changes stashed, switched to ${defBranch}`);
+  } catch (e) {
+    error = e;
+  }
+  if (long) { state.busy = null; renderDetail(); }
+  if (error) {
+    if (name === 'remove' && !extra.force && /uncommitted|not merged|unmerged|--force|-D\b/.test(error.message)) {
+      const force = await ask({ title: 'Force remove?', ok: 'Force remove', danger: true,
+        body: `${b} has uncommitted or unmerged work. Force removing deletes the folder and the branch. This can't be undone.`, detail: error.message });
+      return force ? act('remove', { force: true }, { i, repo, key, defBranch }) : undefined;
+    }
+    return toast(error.message, true);
+  }
+  if (long && state.repo === repo) {
+    await loadList(false);
+    if (state.repo !== repo) return;
+    if (name === 'move') select(i.branch, true);
+    if (name === 'reset') select(defBranch, true);
+    loadList(true); refreshRepos();
+  }
+}
+
+async function refreshRepos() {
+  state.repos = (await api('repos')).sort((a, b) => a.name.localeCompare(b.name));
+  renderRepos();
+  loadHealth();
+}
+setInterval(() => { if (!document.hidden) loadHealth(); }, 120000);
+
+function openNew() {
+  $('#new').classList.add('open');
+  $('#new-btn').setAttribute('aria-expanded', 'true');
+  $('#new [name=branch]').focus();
+}
+function closeNew() {
+  $('#new').classList.remove('open');
+  $('#new').reset();
+  $('#new-btn').setAttribute('aria-expanded', 'false');
+}
+
+$('#repos').addEventListener('click', (e) => { const b = e.target.closest('[data-repo]'); if (b) selectRepo(b.dataset.repo); });
+$('#repo-filter').addEventListener('input', renderRepos);
+$('#repo-filter').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { const first = $('#repos [data-repo]'); if (first) { selectRepo(first.dataset.repo); e.target.value = ''; renderRepos(); e.target.blur(); } }
+  if (e.key === 'Escape') { e.target.value = ''; renderRepos(); }
+});
+
+$('#scrim').addEventListener('click', () => select(null));
+
+$('#rows').addEventListener('click', (e) => {
+  if (e.target.closest('[data-new]')) return openNew();
+  if (e.target.closest('[data-retry]')) return selectRepo(state.repo);
+  const r = e.target.closest('[data-key]');
+  if (r) select(r.dataset.key === state.sel ? null : r.dataset.key);
+});
+
+$('#detail').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]');
+  if (b) return act(b.dataset.act);
+  if (e.target.closest('[data-close]')) {
+    const k = state.sel;
+    select(null);
+    return $(`#rows [data-key="${CSS.escape(k)}"]`)?.focus();
+  }
+  const c = e.target.closest('[data-copy]');
+  if (c) navigator.clipboard.writeText(c.dataset.copy).then(() => toast('Copied'));
+});
+
+const THEME_KEY = 'trees-theme';
+const isDark = () => (document.documentElement.dataset.theme ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark';
+function renderThemeBtn() {
+  const toDark = !isDark();
+  const btn = $('#theme-btn');
+  btn.setAttribute('aria-label', toDark ? 'Switch to dark mode' : 'Switch to light mode');
+  btn.title = btn.getAttribute('aria-label');
+  btn.innerHTML = toDark
+    ? '<svg class="i lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>'
+    : '<svg class="i lg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>';
+}
+$('#theme-btn').addEventListener('click', () => {
+  const next = isDark() ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem(THEME_KEY, next); } catch {}
+  renderThemeBtn();
+});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderThemeBtn);
+renderThemeBtn();
+
+let pendingUpdate = null, updating = false;
+function renderUpdateBtn(label) {
+  const u = pendingUpdate, btn = $('#update-btn');
+  btn.hidden = !updating && !(u?.canUpdate || u?.stale);
+  btn.disabled = updating;
+  btn.textContent = label ?? (u?.canUpdate ? 'Update available' : 'Restart to finish update');
+}
+async function checkVersion() {
+  try { pendingUpdate = await api('version'); } catch { return; }
+  if (!updating) renderUpdateBtn();
+}
+
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+async function waitForRestart(oldBoot) {
+  for (let i = 0; i < 40; i++) {
+    await pause(1000);
+    try { if ((await api('version')).boot !== oldBoot) return true; } catch {}
+  }
+  return false;
+}
+
+$('#update-btn').addEventListener('click', async () => {
+  const u = pendingUpdate;
+  if (state.busy) return toast(`Wait until ${state.busy.name} finishes.`, true);
+  const n = u.behind;
+  const ok = await ask(u.canUpdate
+    ? { title: 'Update Trees?', ok: 'Update', body: `${n} new change${n === 1 ? '' : 's'}:<ul>${u.commits.map((c) => `<li>${esc(c.subject)}</li>`).join('')}</ul>` }
+    : { title: 'Restart Trees?', ok: 'Restart', body: 'A newer version was pulled outside the app. Restart to start using it.' });
+  if (!ok) return;
+  updating = true;
+  renderUpdateBtn('Updating…');
+  try {
+    const r = await api('update', u.canUpdate ? { to: u.target } : {});
+    if (!r.restart) return location.reload();
+    if (!r.auto) {
+      updating = false;
+      pendingUpdate = { ...u, canUpdate: false, stale: false };
+      renderUpdateBtn();
+      return toast('Updated. Stop the tool and start it again to finish.', true);
+    }
+    renderUpdateBtn('Restarting…');
+    if (await waitForRestart(r.boot)) return location.reload();
+    toast('The tool did not come back after restarting. Restart it with pm2.', true);
+  } catch (e) {
+    toast(e.message, true);
+  }
+  updating = false;
+  renderUpdateBtn();
+  checkVersion();
+});
+checkVersion();
+setInterval(() => { if (!document.hidden) checkVersion(); }, 30 * 60e3);
+
+const INTRO_KEY = 'trees-intro-done';
+function showIntro(show) {
+  $('#intro').hidden = !show;
+  $('#help-btn').setAttribute('aria-expanded', String(show));
+}
+$('#help-btn').addEventListener('click', () => showIntro($('#intro').hidden));
+$('#intro').addEventListener('click', (e) => {
+  if (!e.target.closest('[data-intro-close]')) return;
+  try { localStorage.setItem(INTRO_KEY, '1'); } catch {}
+  showIntro(false);
+  $('#help-btn').focus();
+});
+try { showIntro(localStorage.getItem(INTRO_KEY) !== '1'); } catch { showIntro(true); }
+
+$('#new-btn').addEventListener('click', () => ($('#new').classList.contains('open') ? closeNew() : openNew()));
+$('#new-cancel').addEventListener('click', closeNew);
+$('#new').addEventListener('keydown', (e) => { if (e.key === 'Escape') closeNew(); });
+$('#new').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const branch = f.get('branch').trim();
+  const btn = e.submitter;
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    await api('create', { repo: state.repo, branch, base: f.get('base').trim() || undefined });
+    closeNew();
+    toast(`Created ${branch}`);
+    await loadList(false);
+    select(branch, true);
+    loadList(true); refreshRepos();
+  } catch (err) { toast(err.message, true); }
+  finally { btn.disabled = false; btn.textContent = 'Create'; }
+});
+
+document.addEventListener('keydown', (e) => {
+  if ($('#ask').open || e.target.closest?.('input, textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
+  const keys = [...document.querySelectorAll('#rows [data-key]')].map((r) => r.dataset.key);
+  const idx = keys.indexOf(state.sel);
+  if ((e.key === 'ArrowDown' || e.key === 'j') && keys.length) select(keys[Math.min(idx + 1, keys.length - 1)], true);
+  else if ((e.key === 'ArrowUp' || e.key === 'k') && keys.length) select(keys[Math.max(idx - 1, 0)], true);
+  else if (e.key === 'Escape' && state.sel) { const k = state.sel; select(null); $(`#rows [data-key="${CSS.escape(k)}"]`)?.focus(); }
+  else return;
+  e.preventDefault();
+});
+
+setInterval(() => { if (!document.hidden && state.repo && !state.busy) { loadList(true); loadDetail(); } }, 20000);
+
+window.addEventListener('popstate', () => selectRepo(decodeURIComponent(location.hash.slice(1)), false));
+
+refreshRepos().then(() => {
+  const fromHash = decodeURIComponent(location.hash.slice(1));
+  const start = state.repos.find((r) => r.name === fromHash) ?? state.repos.find((r) => r.worktrees) ?? state.repos[0];
+  if (start) selectRepo(start.name);
+  else $('#rows').innerHTML = '<div class="list"><div class="state">No git repositories found in this folder.</div></div>';
+}).catch((e) => { $('#rows').innerHTML = `<div class="list"><div class="state">${esc(e.message)}</div></div>`; });
+</script>
+</body>
+</html>

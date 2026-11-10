@@ -1,0 +1,10 @@
+{
+  "name": "trees",
+  "private": true,
+  "license": "MIT",
+  "description": "Local web UI for managing git worktrees with worktrunk (wt)",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test --test-reporter=spec test/*.test.mjs"
+  }
+}
