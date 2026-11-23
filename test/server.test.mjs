@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, statSync, copyFileSync, appendFileSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, statSync, copyFileSync, appendFileSync, rmSync, symlinkSync, chmodSync, existsSync } from 'node:fs';
 import { createServer, connect } from 'node:net';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -209,6 +209,31 @@ test('only routes actions under /api/', async () => {
 
 test('create requires a branch name', async () => {
   assert.equal((await post('/api/create', { repo: 'demo' })).status, 400);
+});
+
+test('prunes the pnpm store after removing a pnpm worktree, not after others', async () => {
+  const trees = { pnpm: join(tmp, 'wt-pnpm'), npm: join(tmp, 'wt-npm') };
+  mkdirSync(trees.pnpm);
+  mkdirSync(trees.npm);
+  writeFileSync(join(trees.pnpm, 'pnpm-lock.yaml'), '');
+  const listing = join(tmp, 'wt-list.json');
+  writeFileSync(listing, JSON.stringify({
+    repo: { default_branch: 'main' },
+    items: Object.entries(trees).map(([branch, path]) => ({ branch, worktree: { path } })),
+  }));
+  const log = join(tmp, 'pnpm.log');
+  const script = (name, body) => { writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`); chmodSync(join(bin, name), 0o755); };
+  script('wt', `[ "$1" = list ] && exec cat '${listing}'\nfor a; do last=$a; done\nrm -rf "$last"`);
+  script('pnpm', `echo "$@" >> '${log}'`);
+  try {
+    assert.equal((await post('/api/remove', { repo: 'demo', key: 'npm' })).status, 200);
+    assert.equal((await post('/api/remove', { repo: 'demo', key: 'pnpm' })).status, 200);
+    for (let i = 0; i < 40 && !existsSync(log); i++) await wait(50);
+    assert.equal(readFileSync(log, 'utf8'), 'store prune\n');
+  } finally {
+    rmSync(join(bin, 'wt'));
+    rmSync(join(bin, 'pnpm'));
+  }
 });
 
 test('applies exactly the update that was shown, despite untracked files', async () => {

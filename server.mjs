@@ -122,6 +122,12 @@ const detail = async (repo, key) => {
 
 const wt = (repo, ...args) => run('wt', args, repoPath(repo));
 
+let pruning = Promise.resolve();
+const pruneStore = () => {
+  pruning = pruning.then(() => run('pnpm', ['store', 'prune'], homedir())
+    .catch((e) => console.error(`pnpm store prune failed: ${e.message}`)));
+};
+
 const actions = {
   create: ({ repo, branch, base }) => {
     for (const b of [branch, base ?? 'main'])
@@ -133,8 +139,13 @@ const actions = {
     if (!it.branch) throw fail(400, 'Detached worktrees have no branch to merge');
     return wt(repo, 'merge', '--branch', it.branch);
   },
-  remove: async ({ repo, key, force }) =>
-    wt(repo, 'remove', '--foreground', ...(force ? ['--force', '--force-delete'] : []), (await item(repo, key)).it.worktree.path),
+  remove: async ({ repo, key, force }) => {
+    const path = (await item(repo, key)).it.worktree.path;
+    const usesPnpm = existsSync(join(path, 'pnpm-lock.yaml'));
+    const out = await wt(repo, 'remove', '--foreground', ...(force ? ['--force', '--force-delete'] : []), path);
+    if (usesPnpm) pruneStore();
+    return out;
+  },
   move: async ({ repo, key }) => {
     const { it, base } = await item(repo, key);
     const branch = it.branch;
