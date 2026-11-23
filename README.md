@@ -5,6 +5,7 @@ A local web UI for [worktrunk](https://github.com/max-sixty/worktrunk). See ever
 - Repo sidebar with a red dot where CI is failing or a branch has conflicts
 - One row per worktree: status, ahead/behind, PR link
 - Detail panel: commits, changed files, open in terminal or editor, merge, remove
+- Removing a worktree with a `pnpm-lock.yaml` runs `pnpm store prune` afterwards, so the global pnpm store doesn't keep growing
 - Move a feature branch out of the main checkout into its own worktree, or stash it away
 - One-click self-update from this repo
 
